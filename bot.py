@@ -2,16 +2,10 @@ import discord
 from discord.ext import commands
 
 TOKEN = 'NzQ2Mzk5ODgzODAzNjIzNTA0.Xz_xDw.CmbVbarP0SYdzqhROfhvjdWEmpo'
-CHANNEL = None
 
 bot = commands.Bot(command_prefix='$')
 
-# @bot.command(name='test')
-# async def test(ctx):
-#     await ctx.send('lol')
-
-# def genStr(string):
-
+bot.channel = None
 
 @bot.command(name='cd')
 async def changeChannel(context, channel_name: str):
@@ -23,15 +17,16 @@ async def changeChannel(context, channel_name: str):
     elif type(existing_channel) != discord.channel.VoiceChannel:
         await context.send("```ERROR: this is not a voice channel!```")
         return
-    CHANNEL = existing_channel
+    bot.channel = existing_channel.name
     await context.send("channel found!")
 
 @bot.command(name='attendence')
 async def channelAttendence(context):
-    if not CHANNEL:
+    if not bot.channel:
         await context.send("```ERROR: no channel currently selected```")
         return
-    await context.send(f"Fetching attendence for {CHANNEL}")
+    await context.send(f"Fetching attendence for {bot.channel}")
 
+# @bot.event()
 
 bot.run(TOKEN)
