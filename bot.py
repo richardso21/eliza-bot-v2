@@ -23,9 +23,15 @@ async def changeChannel(context, channel_name: str):
     elif type(existing_channel) != discord.channel.VoiceChannel:
         await context.send("```ERROR: this is not a voice channel!```")
         return
-    await context.send("channel found!")
     CHANNEL = existing_channel
+    await context.send("channel found!")
 
-# @bot.command(name='')
+@bot.command(name='attendence')
+async def channelAttendence(context):
+    if not CHANNEL:
+        await context.send("```ERROR: no channel currently selected```")
+        return
+    await context.send(f"Fetching attendence for {CHANNEL}")
+
 
 bot.run(TOKEN)
