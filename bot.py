@@ -14,14 +14,18 @@ bot = commands.Bot(command_prefix='$')
 
 
 @bot.command(name='cd')
-async def changeChannel(ctx, channel_name: str):
-    guild = ctx.guild
+async def changeChannel(context, channel_name: str):
+    guild = context.guild
     existing_channel = discord.utils.get(guild.channels, name=channel_name)
     if not existing_channel:
-        await ctx.send("```ERROR: wrong channel argument```")
+        await context.send("```ERROR: voice channel isn't found (probably misspelled :p) ```")
         return
-    await ctx.send("channel found!")
-    print(existing_channel)
+    elif type(existing_channel) != discord.channel.VoiceChannel:
+        await context.send("```ERROR: this is not a voice channel!```")
+        return
+    await context.send("channel found!")
     CHANNEL = existing_channel
+
+# @bot.command(name='')
 
 bot.run(TOKEN)
