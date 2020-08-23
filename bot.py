@@ -1,13 +1,13 @@
 import discord
 import os
-from discord.ext import commands
+from discord.ext.commands import Bot
 
 TOKEN = 'NzQ2Mzk5ODgzODAzNjIzNTA0.Xz_xDw.CmbVbarP0SYdzqhROfhvjdWEmpo'
 
-bot = commands.Bot(command_prefix='$')
+bot = Bot(command_prefix='$')
 
 bot.selected_channel = None
-
+bot.bot_channel = None
 bot.absents = None
 
 # >>> HELPERS >>>
@@ -35,7 +35,28 @@ async def on_ready():
     # change bot activity to "Watching Hamilton" :P
     await bot.change_presence(activity=discord.Activity(type=discord.ActivityType.watching,
                                                         name='Hamilton'))
+    # find for a text channel named `bot` to defaultly output text
+    for channel in bot.get_all_channels():
+        if channel.name in ['bot', 'Bot']:
+            bot.bot_channel = channel
+            break
 
+
+@bot.event
+async def on_voice_state_update(member, before, after):
+    # disable this feature if there's no `bot` dedicated channel.
+    if bot.bot_channel == None:
+        return
+    # Otherwise, assign the channel as context
+    context = bot.bot_channel
+    # if member connects to a VC
+    if before.channel == None and after.channel != None:
+        await infoString(context, f'User "{member.display_name}" joined \'{after.channel.name}\'')
+    # if member leaves a VC
+    elif after.channel == None and before.channel != None:
+        await infoString(context, f'User "{member.display_name}" left \'{before.channel.name}\'')
+    elif before.channel.name != after.channel.name:
+        await infoString(context, f'User "{member.display_name}" Switched from \'{before.channel.name}\' -> \'{after.channel.name}\'')
 
 @bot.command(name='server', help='Prints server information')
 async def serverInfo(context):
@@ -99,7 +120,7 @@ async def channelAttendence(context, tag='@everyone'):
 
 
 @bot.command(name='absent', help='Lists members of tag not in selected VC. Add `alert` to mention them.')
-async def channelAbsence(context, tag='@everyone', alert='no_alert'):
+async def channelAbsence(context, tag='@everyone', ping='no_ping'):
     # raise error if no channel is selected yet
     if not bot.selected_channel:
         await errorString(context, 'no channel currently selected!')
@@ -126,22 +147,22 @@ async def channelAbsence(context, tag='@everyone', alert='no_alert'):
                      f'Members Absent In "{channel}" With Tag \'{tag}\': \n{txt}' +
                      f'# Of People With Tag \'{tag}\' NOT In "{channel}": {len(absent_members)}')
 
-    # ping them if `alert` is added to the end of the command
-    if alert == 'alert':
+    # ping them if `ping` is added to the end of the command
+    if ping == 'ping':
         for member in absent_members:
             await context.send(member.mention)
 
     bot.absents = absent_members
 
 
-@bot.command(name='spam', help='After using `absent`, tags the absent members')
-async def spam(context):
+@bot.command(name='ping', help='After using `absent`, tags the absent members')
+async def ping(context):
     # raise error if `$absent` isn't used yet or there are no absent people
     if not bot.absents:
         await errorString(context, 'list of absentees are empty (try using `$absent ...` first)')
         return
-    # "spam" absentees from gotten from `$absent`
-    await infoString(context, 'Spamming Absent People (\'shame on you!\')...')
+    # "ping" absentees from gotten from `$absent`
+    await infoString(context, 'Pinging Absent People (shame on you!)...')
     for member in bot.absents:
         await context.send(member.mention)
 
