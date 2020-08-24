@@ -1,5 +1,6 @@
 import discord
 import os
+from datetime import datetime
 from discord.ext.commands import Bot
 
 TOKEN = os.getenv('BOT_TOKEN')
@@ -9,6 +10,7 @@ bot = Bot(command_prefix='$')
 bot.selected_channel = None
 bot.bot_channel = None
 bot.absents = None
+bot.vc_members = {}
 
 
 # >>> HELPERS >>>
@@ -50,16 +52,33 @@ async def on_voice_state_update(member, before, after):
         return
     # Otherwise, assign the channel as context
     context = bot.bot_channel
+
     # if member connects to a VC
     if before.channel == None and after.channel != None:
-        await infoString(context, f'User "{member.display_name}" joined \'{after.channel.name}\'')
+        await infoString(context, f'"{member.display_name}" Joined \'{after.channel.name}\'')
+        # get current time that member joined VC
+        bot.vc_members[member] = datetime.now().replace(microsecond=0)
+
     # if member leaves a VC
     elif after.channel == None and before.channel != None:
-        await infoString(context, f'User "{member.display_name}" left \'{before.channel.name}\'')
+        # find amount of time member spent in VC (time difference)
+        time_diff = datetime.now().replace(microsecond=0) - bot.vc_members[member]
+
+        await infoString(context, f'"{member.display_name}" Left \'{before.channel.name}\'' +
+                                  f'({str(time_diff)} @ \'{before.channel.name}\')')
+        # clear dict entry (save memory)
+        del bot.vc_members[member]
+
     # if member changes VC
     elif before.channel.name != after.channel.name:
-        await infoString(context, f'User "{member.display_name}" ' +
-                         'Switched from \'{before.channel.name}\' -> \'{after.channel.name}\'')
+        # find amount of time member spent in VC (time difference)
+        time_diff = datetime.now().replace(microsecond=0) - bot.vc_members[member]
+
+        await infoString(context, f'"{member.display_name}" ' +
+                         f'Switched from \'{before.channel.name}\' -> \'{after.channel.name}\'' +
+                         f'({str(time_diff)} @ \'{before.channel.name}\')')
+        # reassign current time to member
+        bot.vc_members[member] = datetime.now().replace(microsecond=0)
 
 
 @bot.command(name='server', help='Prints server information.')
@@ -88,7 +107,7 @@ async def changeChannel(context, *, channel_name: str):
     # save channel object for further use (selected)
     bot.selected_channel = existing_channel
     # output confirmation
-    await infoString(context, f'Channel "{existing_channel}" found & selected!')
+    await infoString(context, f'Channel "{existing_channel}" Selected')
 
 
 @bot.command(name='pc', help='Prints the current selected channel.')
@@ -119,8 +138,8 @@ async def channelAttendence(context, *, tag='@everyone'):
 
     # output summary of current attendees
     await infoString(context,
-                     f'Members Present In "{channel}" With Tag "{tag}": \n{txt}' +
-                     f'# Of People With Tag "{tag}" In "{channel}": {len(members)}')
+                     f'members Present in "{channel}" with Tag "{tag}": \n{txt}' +
+                     f'# of people with Tag "{tag}" IN "{channel}": {len(members)}')
 
 
 @bot.command(name='absent', help='Lists members of tag not in selected VC.')
@@ -148,8 +167,8 @@ async def channelAbsence(context, *, tag='@everyone'):
 
     # output summary of absent members
     await infoString(context,
-                     f'Members Absent In "{channel}" With Tag "{tag}": \n{txt}' +
-                     f'# Of People With Tag "{tag}" NOT In "{channel}": {len(absent_members)}')
+                     f'members Absent in "{channel}" with Tag "{tag}": \n{txt}' +
+                     f'# of people with Tag "{tag}" NOT IN "{channel}": {len(absent_members)}')
 
     bot.absents = absent_members
 
@@ -161,7 +180,7 @@ async def ping(context):
         await errorString(context, 'list of absentees are empty (try using `$absent ...` first)')
         return
     # "ping" absentees from gotten from `$absent`
-    await infoString(context, 'Pinging Absent People (shame on you!)...')
+    await infoString(context, 'Pinging Absentees...')
     for member in bot.absents:
         await context.send(member.mention)
 
