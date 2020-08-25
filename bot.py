@@ -9,7 +9,7 @@ bot = Bot(command_prefix='$')
 
 bot.selected_channel = None
 bot.bot_channel = None
-bot.absents = None
+bot.selected_members = None
 bot.vc_members = {}
 
 
@@ -37,7 +37,7 @@ def genList(itr):
 async def on_ready():
     # change bot activity to "Watching Hamilton" :P
     await bot.change_presence(activity=discord.Activity(type=discord.ActivityType.watching,
-                                                        name='Hamilton'))
+                                                        name='Hamilton on Disney+'))
     # find for a text channel named `bot` to defaultly output text
     for channel in bot.get_all_channels():
         if channel.name in ['bot', 'Bot']:
@@ -65,20 +65,21 @@ async def on_voice_state_update(member, before, after):
         time_diff = datetime.now().replace(microsecond=0) - bot.vc_members[member]
 
         await infoString(context, f'"{member.display_name}" Left \'{before.channel.name}\'' +
-                                  f'({str(time_diff)} @ \'{before.channel.name}\')')
+                                  f'({str(time_diff)} on VC)')
+                                #   f'({str(time_diff)} @ \'{before.channel.name}\')')
         # clear dict entry (save memory)
         del bot.vc_members[member]
 
-    # if member changes VC
-    elif before.channel.name != after.channel.name:
-        # find amount of time member spent in VC (time difference)
-        time_diff = datetime.now().replace(microsecond=0) - bot.vc_members[member]
+    # # if member changes VC (beware of channel spam!!!)
+    # elif before.channel.name != after.channel.name:
+    #     # find amount of time member spent in VC (time difference)
+    #     time_diff = datetime.now().replace(microsecond=0) - bot.vc_members[member]
 
-        await infoString(context, f'"{member.display_name}" ' +
-                         f'Switched from \'{before.channel.name}\' -> \'{after.channel.name}\'' +
-                         f'({str(time_diff)} @ \'{before.channel.name}\')')
-        # reassign current time to member
-        bot.vc_members[member] = datetime.now().replace(microsecond=0)
+    #     await infoString(context, f'"{member.display_name}" ' +
+    #                      f'Switched from \'{before.channel.name}\' -> \'{after.channel.name}\'' +
+    #                      f'({str(time_diff)} @ \'{before.channel.name}\')')
+    #     # reassign current time to member
+    #     bot.vc_members[member] = datetime.now().replace(microsecond=0)
 
 
 @bot.command(name='server', help='Prints server information.')
@@ -110,24 +111,32 @@ async def changeChannel(context, *, channel_name: str):
     await infoString(context, f'Channel "{existing_channel}" Selected')
 
 
-@bot.command(name='pc', help='Prints the current selected channel.')
+@bot.command(name='current', help='Prints the current selected channel.')
 async def currentChannel(context):
     # raise error if no channel is selected yet
     if not bot.selected_channel:
-        await errorString(context, 'no channel currently selected!')
+        await errorString(context, 'no channel currently selected (You might end up with unwanted results)!')
         return
     # output current selected channel
     await infoString(context, f'Selected Channel: "{bot.selected_channel}"')
 
 
 @bot.command(name='present', help='Prints who are currently in selected VC. Default: `@everyone`.')
-async def channelAttendence(context, *, tag='@everyone'):
-    # raise error if no channel is selected yet
+async def channelPresence(context, *, tag='@everyone'):
+    # try to auto-select no channel is selected yet
+    vc_available = False
     if not bot.selected_channel:
-        await errorString(context, 'no channel currently selected!')
-        return
-
-    channel = bot.selected_channel
+        for voice_channel in context.guild.voice_channels:
+            if len(voice_channel.members) != 0:
+                await infoString(context, f'No Channel Selected, Auto-Selecting: "{voice_channel}"')
+                channel = voice_channel
+                vc_available = True
+                break
+        if not vc_available:
+            await errorString(context, 'no channel selected or has members!')
+            return
+    else:
+        channel = bot.selected_channel
 
     # create a list of member names that hold the tag/role currently in the channel
     members = [member.display_name for member in channel.members
@@ -141,15 +150,25 @@ async def channelAttendence(context, *, tag='@everyone'):
                      f'members Present in "{channel}" with Tag "{tag}": \n{txt}' +
                      f'# of people with Tag "{tag}" IN "{channel}": {len(members)}')
 
+    bot.selected_members = members
+
 
 @bot.command(name='absent', help='Lists members of tag not in selected VC.')
 async def channelAbsence(context, *, tag='@everyone'):
-    # raise error if no channel is selected yet
+    # try to auto-select no channel is selected yet
+    vc_available = False
     if not bot.selected_channel:
-        await errorString(context, 'no channel currently selected!')
-        return
-
-    channel = bot.selected_channel
+        for voice_channel in context.guild.voice_channels:
+            if len(voice_channel.members) != 0:
+                await infoString(context, f'No Channel Selected, Auto-Selecting: "{voice_channel}"')
+                channel = voice_channel
+                vc_available = True
+                break
+        if not vc_available:
+            await errorString(context, 'no channel selected or has members!')
+            return
+    else:
+        channel = bot.selected_channel
 
     # get all member objects with the tag/role
     all_members = [member for member in context.guild.members
@@ -170,19 +189,40 @@ async def channelAbsence(context, *, tag='@everyone'):
                      f'members Absent in "{channel}" with Tag "{tag}": \n{txt}' +
                      f'# of people with Tag "{tag}" NOT IN "{channel}": {len(absent_members)}')
 
-    bot.absents = absent_members
+    bot.selected_members = absent_members
 
 
-@bot.command(name='ping', help='After using `absent`, tags the absent members.')
+@bot.command(name='ping', help='After using `absent`/`present`/`role`, tags the selected members.')
 async def ping(context):
     # raise error if `$absent` isn't used yet or there are no absent people
-    if not bot.absents:
-        await errorString(context, 'list of absentees are empty (try using `$absent ...` first)')
+    if not bot.selected_members:
+        await errorString(context, 'list of absentees are empty (try using `$absent|present|role` first)')
         return
     # "ping" absentees from gotten from `$absent`
     await infoString(context, 'Pinging Absentees...')
-    for member in bot.absents:
+    for member in bot.selected_members:
         await context.send(member.mention)
+
+
+@bot.command(name='role', help='Lists all members with the role')
+async def roles(context, *, tag: str):
+    # raise error if argument isn't given
+    if not tag:
+        await errorString(context, '`$role` requires an extra argument: role/tag/dept.')
+        return
+
+    # list all members that has the role
+    role_members = [member for member in context.guild.members
+                   if tag in [role.name for role in member.roles]]
+
+    # generate list string
+    txt = genList([member.display_name for member in role_members])
+
+    await infoString(context,
+                     f'members with Tag "{tag}": \n{txt}' +
+                     f'# of people with Tag "{tag}": {len(role_members)}')
+
+    bot.selected_members = role_members
 
 
 bot.run(TOKEN)
