@@ -2,10 +2,12 @@ import discord
 import os
 from datetime import datetime
 from discord.ext.commands import Bot
+from discord import Intents
+intents = Intents.all()
 
 TOKEN = os.getenv('BOT_TOKEN')
 
-bot = Bot(command_prefix='$')
+bot = Bot(command_prefix='$', intents=intents)
 
 bot.selected_channel = None
 bot.bot_channel = None
@@ -93,7 +95,7 @@ async def serverInfo(context):
 
 
 @bot.command(name='select', help='Select a voice channel.')
-async def changeChannel(context, *, channel_name: str):
+async def changeChannel(context, *, channel_name='General'):
     guild = context.guild
     # get current guild channels
     existing_channel = discord.utils.get(guild.channels, name=channel_name)
@@ -110,12 +112,16 @@ async def changeChannel(context, *, channel_name: str):
     # output confirmation
     await infoString(context, f'Channel "{existing_channel}" Selected')
 
+@bot.command(name='deselect', help='Deselect whatever channel you were on.')
+async def deselChannel(context):
+    bot.selected_channel = None
+    await infoString('Previous channel deselected. Defaulting to autoselect behavior.')
 
 @bot.command(name='current', help='Prints the current selected channel.')
 async def currentChannel(context):
     # raise error if no channel is selected yet
     if not bot.selected_channel:
-        await errorString(context, 'no channel currently selected (You might end up with unwanted results)!')
+        await errorString(context, 'no channel currently selected (Autoselect ON)!')
         return
     # output current selected channel
     await infoString(context, f'Selected Channel: "{bot.selected_channel}"')
@@ -205,7 +211,7 @@ async def ping(context):
 
 
 @bot.command(name='role', help='Lists all members with the role')
-async def roles(context, *, tag: str):
+async def roles(context, *, tag='@everyone'):
     # raise error if argument isn't given
     if not tag:
         await errorString(context, '`$role` requires an extra argument: role/tag/dept.')
