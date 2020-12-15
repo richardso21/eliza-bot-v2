@@ -10,7 +10,7 @@ TOKEN = os.getenv('BOT_TOKEN')
 bot = Bot(command_prefix='$', intents=intents)
 
 bot.selected_channel = None
-bot.bot_channel = None
+bot.bot_channels = {}
 bot.selected_members = None
 bot.vc_members = {}
 
@@ -41,19 +41,23 @@ async def on_ready():
     await bot.change_presence(activity=discord.Activity(type=discord.ActivityType.watching,
                                                         name='Hamilton on Disney+'))
     # find for a text channel named `bot` to defaultly output text
+    # will keep track of bot channels for multiple guilds (servers)
     for channel in bot.get_all_channels():
-        if channel.name in ['bot', 'Bot']:
-            bot.bot_channel = channel
-            break
+        if ('bot' in channel.name) and isinstance(channel, discord.channel.TextChannel):
+            bot.bot_channels[channel.guild] = channel
+            # break
 
 
 @bot.event
 async def on_voice_state_update(member, before, after):
-    # disable this feature if there's no `bot` dedicated channel.
-    if bot.bot_channel == None:
+    # find guild that the member is on
+    member_guild = member.guild
+
+    # disable this feature if there's no `bot` dedicated channel for that guild/server
+    if not bot.bot_channels[member_guild]:
         return
     # Otherwise, assign the channel as context
-    context = bot.bot_channel
+    context = bot.bot_channels[member_guild]
 
     # if member connects to a VC
     if before.channel == None and after.channel != None:
@@ -112,10 +116,12 @@ async def changeChannel(context, *, channel_name='General'):
     # output confirmation
     await infoString(context, f'Channel "{existing_channel}" Selected')
 
+
 @bot.command(name='deselect', help='Deselect whatever channel you were on.')
 async def deselChannel(context):
     bot.selected_channel = None
     await infoString('Previous channel deselected. Defaulting to autoselect behavior.')
+
 
 @bot.command(name='current', help='Prints the current selected channel.')
 async def currentChannel(context):
